@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dao-governance-influxdb
+  labels:
+    app: dao-governance
+    component: influxdb
+spec:
+  ports:
+  - port: 8086
+    targetPort: 8086
+    name: http
+  selector:
+    app: dao-governance
+    component: influxdb
+  clusterIP: None 

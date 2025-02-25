@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dao-governance-celery
+  labels:
+    app: dao-governance
+    component: celery
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dao-governance
+      component: celery
+  template:
+    metadata:
+      labels:
+        app: dao-governance
+        component: celery
+    spec:
+      containers:
+      - name: celery
+        image: dao-governance:latest
+        command: ["celery", "-A", "dao_governance", "worker", "-l", "info"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        env:
+        - name: DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: DEBUG
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: SECRET_KEY
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: REDIS_PORT
+        - name: CELERY_BROKER_URL
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: CELERY_BROKER_URL
+        - name: CELERY_RESULT_BACKEND
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: CELERY_RESULT_BACKEND
+        - name: DB_ENGINE
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: DB_ENGINE
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: DB_PASSWORD
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: DB_PORT
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000 

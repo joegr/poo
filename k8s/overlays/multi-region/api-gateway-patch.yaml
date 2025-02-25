@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dao-governance-api-gateway
+spec:
+  replicas: 3
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - dao-governance
+              - key: component
+                operator: In
+                values:
+                - api-gateway
+            topologyKey: "topology.kubernetes.io/zone"
+      containers:
+      - name: api-gateway
+        env:
+        - name: KONG_REGION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['topology.kubernetes.io/region']
+        - name: KONG_ROLE
+          value: "data_plane"
+        - name: KONG_CLUSTER_CONTROL_PLANE
+          value: "dao-governance-api-gateway-cp.dao-governance-multi-region.svc.cluster.local:8005"
+        - name: KONG_CLUSTER_TELEMETRY_ENDPOINT
+          value: "dao-governance-api-gateway-cp.dao-governance-multi-region.svc.cluster.local:8006"
+        - name: KONG_CLUSTER_CERT
+          value: "/etc/kong/cluster.crt"
+        - name: KONG_CLUSTER_CERT_KEY
+          value: "/etc/kong/cluster.key"
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+        - name: kong-cluster-certs
+          mountPath: /etc/kong
+          readOnly: true
+      volumes:
+      - name: kong-cluster-certs
+        secret:
+          secretName: kong-cluster-certs 

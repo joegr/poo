@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dao-governance-treasury
+spec:
+  replicas: 3
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - dao-governance
+              - key: component
+                operator: In
+                values:
+                - treasury
+            topologyKey: "topology.kubernetes.io/zone"
+      containers:
+      - name: treasury
+        env:
+        - name: TREASURY_REGION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['topology.kubernetes.io/region']
+        - name: MULTI_REGION_MODE
+          value: "True"
+        - name: MIN_REGION_CONSENSUS
+          value: "2"
+        - name: VAULT_ADDR
+          value: "https://$(TREASURY_REGION).vault.dao-governance.example.com"
+        - name: VAULT_ROLE
+          value: "treasury"
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+        - name: treasury-vault-token
+          mountPath: /var/run/secrets/vault
+          readOnly: true
+      volumes:
+      - name: treasury-vault-token
+        secret:
+          secretName: treasury-vault-token 

@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dao-governance-config
+  labels:
+    app: dao-governance
+data:
+  DEBUG: "False"
+  ALLOWED_HOSTS: "dao-governance.example.com,dao-governance-web"
+  DB_ENGINE: "django.db.backends.postgresql"
+  DB_NAME: "dao_governance"
+  DB_HOST: "dao-governance-postgres"
+  DB_PORT: "5432"
+  REDIS_HOST: "dao-governance-redis"
+  REDIS_PORT: "6379"
+  NEO4J_URI: "bolt://dao-governance-neo4j:7687"
+  INFLUXDB_URL: "http://dao-governance-influxdb:8086"
+  INFLUXDB_ORG: "dao_governance"
+  INFLUXDB_BUCKET: "governance_metrics"
+  PROPOSAL_DISCUSSION_PERIOD_DAYS: "14"
+  PROPOSAL_VOTING_PERIOD_DAYS: "7"
+  PROPOSAL_TIMELOCK_HOURS: "48"
+  PROPOSAL_QUORUM_PERCENTAGE: "45"
+  PROPOSAL_APPROVAL_THRESHOLD: "70"
+  MAX_VOTING_POWER_PERCENTAGE: "25"
+  TREASURY_MULTISIG_THRESHOLD: "5"
+  TREASURY_GUARDIANS: "9"
+  TREASURY_RESERVE_RATIO: "0.3" 

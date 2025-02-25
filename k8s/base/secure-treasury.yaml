@@ -1,0 +1,189 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dao-governance-treasury
+  labels:
+    app: dao-governance
+    component: treasury
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dao-governance
+      component: treasury
+  template:
+    metadata:
+      labels:
+        app: dao-governance
+        component: treasury
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: treasury
+        image: dao-governance:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        env:
+        - name: DEBUG
+          value: "False"
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: treasury-secrets
+              key: SECRET_KEY
+        - name: TREASURY_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: treasury-config
+              key: treasury-settings
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 20
+      serviceAccountName: treasury-service-account
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dao-governance-treasury
+  labels:
+    app: dao-governance
+    component: treasury
+spec:
+  ports:
+  - port: 8000
+    targetPort: http
+    name: http
+  selector:
+    app: dao-governance
+    component: treasury
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: treasury-config
+  labels:
+    app: dao-governance
+    component: treasury
+data:
+  treasury-settings: |
+    {
+      "multisig_required": true,
+      "min_signatures": 3,
+      "max_transaction_value": 100000,
+      "circuit_breaker_threshold": 500000,
+      "cooldown_period_hours": 24,
+      "allowed_token_contracts": [
+        "0x1234567890abcdef1234567890abcdef12345678",
+        "0xabcdef1234567890abcdef1234567890abcdef12"
+      ]
+    }
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: treasury-secrets
+  labels:
+    app: dao-governance
+    component: treasury
+type: Opaque
+data:
+  SECRET_KEY: UExBQ0VIT0xERVJfRk9SX0JBU0U2NF9FTkNPREVEX1NFQ1JFVF9LRVk=
+  WALLET_PRIVATE_KEY: UExBQ0VIT0xERVJfRk9SX0JBU0U2NF9FTkNPREVEX1dBTExFVF9LRVk=
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: treasury-service-account
+  labels:
+    app: dao-governance
+    component: treasury
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: treasury-role
+  labels:
+    app: dao-governance
+    component: treasury
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get"]
+  resourceNames: ["treasury-config", "treasury-secrets"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: treasury-role-binding
+  labels:
+    app: dao-governance
+    component: treasury
+subjects:
+- kind: ServiceAccount
+  name: treasury-service-account
+roleRef:
+  kind: Role
+  name: treasury-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: treasury-network-policy
+  labels:
+    app: dao-governance
+    component: treasury
+spec:
+  podSelector:
+    matchLabels:
+      app: dao-governance
+      component: treasury
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: dao-governance
+          component: api-gateway
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: dao-governance
+          component: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - podSelector:
+        matchLabels:
+          app: dao-governance
+          component: redis
+    ports:
+    - protocol: TCP
+      port: 6379 

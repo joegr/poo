@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dao-governance-web
+  labels:
+    app: dao-governance
+    component: web
+spec:
+  selector:
+    app: dao-governance
+    component: web
+  ports:
+  - port: 80
+    targetPort: 8000
+    name: http
+  type: ClusterIP 

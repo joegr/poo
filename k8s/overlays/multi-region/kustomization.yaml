@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+bases:
+  - ../../base
+
+resources:
+  - namespace.yaml
+
+patches:
+  - path: web-deployment-patch.yaml
+  - path: celery-deployment-patch.yaml
+  - path: postgres-statefulset-patch.yaml
+  - path: redis-deployment-patch.yaml
+  - path: mongodb-statefulset-patch.yaml
+  - path: neo4j-statefulset-patch.yaml
+  - path: influxdb-statefulset-patch.yaml
+  - path: api-gateway-patch.yaml
+  - path: vault-patch.yaml
+  - path: treasury-patch.yaml
+
+configMapGenerator:
+  - name: dao-governance-config
+    behavior: merge
+    literals:
+      - MULTI_REGION=True
+      - PRIMARY_REGION=us-east-1
+      - SECONDARY_REGIONS=us-west-2,eu-west-1
+      - CROSS_REGION_REPLICATION=True 

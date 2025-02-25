@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dao-governance-postgres
+  labels:
+    app: dao-governance
+    component: postgres
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+    name: postgres
+  selector:
+    app: dao-governance
+    component: postgres
+  clusterIP: None 

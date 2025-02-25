@@ -1,0 +1,158 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dao-governance-api-gateway
+  labels:
+    app: dao-governance
+    component: api-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dao-governance
+      component: api-gateway
+  template:
+    metadata:
+      labels:
+        app: dao-governance
+        component: api-gateway
+    spec:
+      containers:
+      - name: kong
+        image: kong:3.0
+        ports:
+        - containerPort: 8000
+          name: proxy
+        - containerPort: 8443
+          name: proxy-ssl
+        - containerPort: 8001
+          name: admin-api
+        - containerPort: 8444
+          name: admin-api-ssl
+        env:
+        - name: KONG_DATABASE
+          value: "off"
+        - name: KONG_DECLARATIVE_CONFIG
+          value: /kong/kong.yaml
+        - name: KONG_PROXY_ACCESS_LOG
+          value: /dev/stdout
+        - name: KONG_ADMIN_ACCESS_LOG
+          value: /dev/stdout
+        - name: KONG_PROXY_ERROR_LOG
+          value: /dev/stderr
+        - name: KONG_ADMIN_ERROR_LOG
+          value: /dev/stderr
+        - name: KONG_ADMIN_LISTEN
+          value: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+        - name: kong-config
+          mountPath: /kong
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: 8001
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /status
+            port: 8001
+          initialDelaySeconds: 15
+          timeoutSeconds: 5
+          periodSeconds: 30
+      volumes:
+      - name: kong-config
+        configMap:
+          name: kong-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dao-governance-api-gateway
+  labels:
+    app: dao-governance
+    component: api-gateway
+spec:
+  selector:
+    app: dao-governance
+    component: api-gateway
+  ports:
+  - name: proxy
+    port: 80
+    targetPort: 8000
+  - name: proxy-ssl
+    port: 443
+    targetPort: 8443
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kong-config
+  labels:
+    app: dao-governance
+    component: api-gateway
+data:
+  kong.yaml: |
+    _format_version: "3.0"
+    _transform: true
+    
+    services:
+    - name: dao-governance-web
+      url: http://dao-governance-web:80
+      routes:
+      - name: main-route
+        paths:
+        - /
+        strip_path: false
+      plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          hour: 1000
+          policy: local
+      - name: cors
+        config:
+          origins:
+          - '*'
+          methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+          - PATCH
+          headers:
+          - Accept
+          - Accept-Version
+          - Content-Length
+          - Content-MD5
+          - Content-Type
+          - Date
+          - X-Auth-Token
+          - Authorization
+          exposed_headers:
+          - X-Auth-Token
+          credentials: true
+          max_age: 3600
+      - name: jwt
+        config:
+          claims_to_verify:
+          - exp
+          key_claim_name: kid
+          secret_is_base64: false
+    
+    consumers:
+    - username: frontend-app
+      jwt_secrets:
+      - algorithm: HS256
+        key: frontend-app-key
+        secret: your-frontend-app-secret 

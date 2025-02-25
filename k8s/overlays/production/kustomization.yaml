@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: dao-governance-prod
+
+bases:
+  - ../../base
+
+resources:
+  - namespace.yaml
+
+patchesStrategicMerge:
+  - deployment-patch.yaml
+  - celery-deployment-patch.yaml
+  - postgres-statefulset-patch.yaml
+  - redis-deployment-patch.yaml
+  - mongo-statefulset-patch.yaml
+  - neo4j-statefulset-patch.yaml
+  - influxdb-statefulset-patch.yaml
+
+configMapGenerator:
+  - name: dao-governance-config
+    behavior: merge
+    literals:
+      - DEBUG="False"
+      - ALLOWED_HOSTS="dao-governance.example.com,dao-governance-web.dao-governance-prod.svc.cluster.local"
+
+images:
+  - name: dao-governance
+    newName: your-registry.example.com/dao-governance
+    newTag: v1.0.0 

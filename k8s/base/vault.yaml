@@ -1,0 +1,158 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dao-governance-vault
+  labels:
+    app: dao-governance
+    component: vault
+spec:
+  serviceName: dao-governance-vault
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dao-governance
+      component: vault
+  template:
+    metadata:
+      labels:
+        app: dao-governance
+        component: vault
+    spec:
+      serviceAccountName: vault
+      containers:
+      - name: vault
+        image: hashicorp/vault:1.12.0
+        ports:
+        - containerPort: 8200
+          name: http
+        - containerPort: 8201
+          name: internal
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        env:
+        - name: VAULT_LOCAL_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: vault-config
+              key: vault-config.json
+        - name: VAULT_ADDR
+          value: "http://127.0.0.1:8200"
+        - name: VAULT_API_ADDR
+          value: "http://$(POD_IP):8200"
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        securityContext:
+          capabilities:
+            add: ["IPC_LOCK"]
+        volumeMounts:
+        - name: vault-data
+          mountPath: /vault/data
+        readinessProbe:
+          httpGet:
+            path: /v1/sys/health
+            port: 8200
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /v1/sys/health
+            port: 8200
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 30
+      volumes:
+      - name: vault-data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dao-governance-vault
+  labels:
+    app: dao-governance
+    component: vault
+spec:
+  selector:
+    app: dao-governance
+    component: vault
+  ports:
+  - name: http
+    port: 8200
+    targetPort: 8200
+  - name: internal
+    port: 8201
+    targetPort: 8201
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-config
+  labels:
+    app: dao-governance
+    component: vault
+data:
+  vault-config.json: |
+    {
+      "ui": true,
+      "listener": {
+        "tcp": {
+          "address": "0.0.0.0:8200",
+          "tls_disable": 1
+        }
+      },
+      "storage": {
+        "file": {
+          "path": "/vault/data"
+        }
+      }
+    }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault
+  labels:
+    app: dao-governance
+    component: vault
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vault-server
+  labels:
+    app: dao-governance
+    component: vault
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-server
+  labels:
+    app: dao-governance
+    component: vault
+subjects:
+- kind: ServiceAccount
+  name: vault
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: vault-server
+  apiGroup: rbac.authorization.k8s.io 

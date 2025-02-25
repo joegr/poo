@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dao-governance-staging
+  labels:
+    name: dao-governance-staging
+    environment: staging 

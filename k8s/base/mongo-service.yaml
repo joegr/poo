@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dao-governance-mongo
+  labels:
+    app: dao-governance
+    component: mongo
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+    name: mongo
+  selector:
+    app: dao-governance
+    component: mongo
+  clusterIP: None 

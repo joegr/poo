@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dao-governance-neo4j
+  labels:
+    app: dao-governance
+    component: neo4j
+spec:
+  serviceName: dao-governance-neo4j
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dao-governance
+      component: neo4j
+  template:
+    metadata:
+      labels:
+        app: dao-governance
+        component: neo4j
+    spec:
+      containers:
+      - name: neo4j
+        image: neo4j:5
+        ports:
+        - containerPort: 7474
+          name: http
+        - containerPort: 7687
+          name: bolt
+        env:
+        - name: NEO4J_AUTH
+          value: neo4j/$(NEO4J_PASSWORD)
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: NEO4J_PASSWORD
+        - name: NEO4J_apoc_export_file_enabled
+          value: "true"
+        - name: NEO4J_apoc_import_file_enabled
+          value: "true"
+        - name: NEO4J_apoc_import_file_use__neo4j__config
+          value: "true"
+        - name: NEO4J_dbms_security_procedures_unrestricted
+          value: "apoc.*"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        volumeMounts:
+        - name: neo4j-data
+          mountPath: /data
+        readinessProbe:
+          tcpSocket:
+            port: 7687
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          tcpSocket:
+            port: 7687
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+      securityContext:
+        fsGroup: 7474
+  volumeClaimTemplates:
+  - metadata:
+      name: neo4j-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: standard
+      resources:
+        requests:
+          storage: 10Gi 

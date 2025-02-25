@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dao-governance-postgres
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        topology.kubernetes.io/region: ${REGION}
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - dao-governance
+              - key: component
+                operator: In
+                values:
+                - postgres
+            topologyKey: "topology.kubernetes.io/zone"
+      containers:
+      - name: postgres
+        env:
+        - name: POSTGRES_REPLICATION_MODE
+          value: "logical"
+        - name: POSTGRES_REPLICATION_USER
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: POSTGRES_REPLICATION_USER
+        - name: POSTGRES_REPLICATION_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: POSTGRES_REPLICATION_PASSWORD
+        - name: POSTGRES_PRIMARY_HOST
+          value: "dao-governance-postgres-primary.dao-governance-multi-region.svc.cluster.local"
+        - name: POSTGRES_REGION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['topology.kubernetes.io/region']
+        resources:
+          requests:
+            cpu: 2000m
+            memory: 4Gi
+          limits:
+            cpu: 4000m
+            memory: 8Gi
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        - name: postgres-wal
+          mountPath: /var/lib/postgresql/wal
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-wal
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "premium-ssd"
+      resources:
+        requests:
+          storage: 50Gi 

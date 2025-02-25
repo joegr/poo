@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dao-governance-web
+  labels:
+    app: dao-governance
+    component: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dao-governance
+      component: web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: dao-governance
+        component: web
+    spec:
+      containers:
+      - name: web
+        image: dao-governance:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        env:
+        - name: DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: DEBUG
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: SECRET_KEY
+        - name: ALLOWED_HOSTS
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: ALLOWED_HOSTS
+        - name: DB_ENGINE
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: DB_ENGINE
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: DB_PASSWORD
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: DB_PORT
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: REDIS_PORT
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: MONGO_URI
+        - name: NEO4J_URI
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: NEO4J_URI
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: NEO4J_USER
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: NEO4J_PASSWORD
+        - name: INFLUXDB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: INFLUXDB_URL
+        - name: INFLUXDB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: INFLUXDB_TOKEN
+        - name: INFLUXDB_ORG
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: INFLUXDB_ORG
+        - name: INFLUXDB_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: dao-governance-config
+              key: INFLUXDB_BUCKET
+        - name: CELERY_BROKER_URL
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: CELERY_BROKER_URL
+        - name: CELERY_RESULT_BACKEND
+          valueFrom:
+            secretKeyRef:
+              name: dao-governance-secrets
+              key: CELERY_RESULT_BACKEND
+        readinessProbe:
+          httpGet:
+            path: /health/
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health/
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 20
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000 

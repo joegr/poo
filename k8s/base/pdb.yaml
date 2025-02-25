@@ -1,0 +1,41 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dao-governance-web-pdb
+  labels:
+    app: dao-governance
+    component: web
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: dao-governance
+      component: web
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dao-governance-celery-pdb
+  labels:
+    app: dao-governance
+    component: celery
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dao-governance
+      component: celery
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dao-governance-postgres-pdb
+  labels:
+    app: dao-governance
+    component: postgres
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dao-governance
+      component: postgres 
