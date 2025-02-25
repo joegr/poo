@@ -86,10 +86,16 @@ services:
 
   # Web application
   web:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: dao-governance:latest
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - logs_volume:/app/logs
     ports:
       - "8000:8000"
     depends_on:
@@ -124,16 +130,68 @@ services:
       - INFLUXDB_BUCKET=governance_metrics
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - STATIC_URL=/static/
+      - STATIC_ROOT=/app/staticfiles
+      - MEDIA_URL=/media/
+      - MEDIA_ROOT=/app/media
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Celery worker
   celery:
-    build: .
-    command: celery -A dao_governance worker -l INFO
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: dao-governance:latest
+    command: celery
     volumes:
       - .:/app
+      - logs_volume:/app/logs
     depends_on:
       - web
       - redis
+      - mongo
+      - postgres
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=dao_governance
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MONGO_URI=mongodb://mongo:mongo@mongo:27017/dao_governance
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    healthcheck:
+      test: celery -A dao_governance inspect ping
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Celery beat for scheduled tasks
+  celery-beat:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: dao-governance:latest
+    command: celery-beat
+    volumes:
+      - .:/app
+      - logs_volume:/app/logs
+    depends_on:
+      - celery
     environment:
       - DEBUG=True
       - SECRET_KEY=dev-secret-key-change-in-production
@@ -142,9 +200,30 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
 
+  # Flower for monitoring Celery tasks
+  flower:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: dao-governance:latest
+    command: flower
+    ports:
+      - "5555:5555"
+    volumes:
+      - .:/app
+    depends_on:
+      - celery
+    environment:
+      - DEBUG=True
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+
 volumes:
   postgres_data:
   redis_data:
   mongo_data:
   neo4j_data:
-  influxdb_data: 
+  influxdb_data:
+  static_volume:
+  media_volume:
+  logs_volume: 

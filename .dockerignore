@@ -1,0 +1,80 @@
+# Git
+.git
+.gitignore
+.github
+
+# Docker
+.docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+.env
+.env.*
+!.env.example
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Local development
+*.sqlite3
+media/
+staticfiles/
+node_modules/
+
+# Kubernetes
+k8s/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Logs
+logs/
+*.log
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Temporary files
+tmp/
+temp/
+
+# Compiled translations
+*.mo
+
+# Celery
+celerybeat-schedule
+celerybeat.pid 
