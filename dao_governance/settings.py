@@ -5,6 +5,7 @@ Django settings for dao_governance project.
 import os
 from pathlib import Path
 from datetime import timedelta
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -99,6 +100,15 @@ DATABASES = {
     }
 }
 
+# Test database - use in-memory SQLite for faster tests
+if 'test' in sys.argv or 'test_coverage' in sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': ':memory:',
+        }
+    }
+
 # MongoDB connection
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/dao_governance')
 
@@ -133,6 +143,15 @@ if CACHES_BACKEND == 'django_redis.cache.RedisCache':
         }
     }
 else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'unique-snowflake',
+        }
+    }
+
+# Use in-memory cache for tests
+if 'test' in sys.argv or 'test_coverage' in sys.argv:
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -194,6 +213,11 @@ REST_FRAMEWORK = {
     }
 }
 
+# Disable throttling during tests
+if 'test' in sys.argv or 'test_coverage' in sys.argv:
+    REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = []
+    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {}
+
 # JWT Settings
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.environ.get('JWT_ACCESS_TOKEN_LIFETIME', 60))),
@@ -248,17 +272,43 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'True') == 'True'
     SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', 31536000))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'True') == 'True'
-    SECURE_HSTS_PRELOAD = os.environ.get('SECURE_HSTS_PRELOAD', 'True') == 'True'
 
-# Governance settings
+# DAO Governance specific settings
 PROPOSAL_DISCUSSION_PERIOD_DAYS = int(os.environ.get('PROPOSAL_DISCUSSION_PERIOD_DAYS', 14))
 PROPOSAL_VOTING_PERIOD_DAYS = int(os.environ.get('PROPOSAL_VOTING_PERIOD_DAYS', 7))
 PROPOSAL_TIMELOCK_HOURS = int(os.environ.get('PROPOSAL_TIMELOCK_HOURS', 48))
 PROPOSAL_QUORUM_PERCENTAGE = int(os.environ.get('PROPOSAL_QUORUM_PERCENTAGE', 45))
 PROPOSAL_APPROVAL_THRESHOLD = int(os.environ.get('PROPOSAL_APPROVAL_THRESHOLD', 70))
-MAX_VOTING_POWER_PERCENTAGE = int(os.environ.get('MAX_VOTING_POWER_PERCENTAGE', 25))
-
-# Treasury settings
+MAX_VOTING_POWER_PERCENTAGE = float(os.environ.get('MAX_VOTING_POWER_PERCENTAGE', 25)) / 100
 TREASURY_MULTISIG_THRESHOLD = int(os.environ.get('TREASURY_MULTISIG_THRESHOLD', 5))
 TREASURY_GUARDIANS = int(os.environ.get('TREASURY_GUARDIANS', 9))
-TREASURY_RESERVE_RATIO = float(os.environ.get('TREASURY_RESERVE_RATIO', 0.3)) 
+TREASURY_RESERVE_RATIO = float(os.environ.get('TREASURY_RESERVE_RATIO', 0.3))
+
+# Test settings
+if 'test' in sys.argv or 'test_coverage' in sys.argv:
+    # Speed up tests by using a faster password hasher
+    PASSWORD_HASHERS = [
+        'django.contrib.auth.hashers.MD5PasswordHasher',
+    ]
+    
+    # Disable logging during tests
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': True,
+        'handlers': {
+            'null': {
+                'class': 'logging.NullHandler',
+            },
+        },
+        'loggers': {
+            '': {
+                'handlers': ['null'],
+                'level': 'CRITICAL',
+            },
+        },
+    }
+    
+    # Test-specific settings for DAO governance
+    RATE_LIMIT_PER_MINUTE = 5
+    TOTAL_VOTING_POWER = 400
+    SESSION_COOKIE_AGE = 1  # 1 second for testing session timeout 

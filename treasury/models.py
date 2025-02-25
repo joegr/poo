@@ -71,7 +71,7 @@ class AssetBalance(models.Model):
         return f"{self.asset.symbol}: {self.balance} (${self.usd_value})"
 
 
-class Transaction(models.Model):
+class TreasuryTransaction(models.Model):
     """Model for treasury transactions."""
     
     class Status(models.TextChoices):
@@ -118,13 +118,13 @@ class Transaction(models.Model):
     executed_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
-        """Meta options for the Transaction model."""
+        """Meta options for the TreasuryTransaction model."""
         
         ordering = ['-created_at']
     
     def __str__(self):
         """String representation of the transaction."""
-        return f"{self.transaction_type}: {self.amount} {self.asset.symbol} (${self.usd_value})"
+        return f"{self.get_transaction_type_display()} of {self.amount} {self.asset.symbol} (${self.usd_value})"
     
     def execute(self):
         """Execute the transaction."""
@@ -132,7 +132,7 @@ class Transaction(models.Model):
             return False
         
         try:
-            # Update asset balance
+            # Update asset balances
             asset_balance, created = AssetBalance.objects.get_or_create(asset=self.asset)
             
             if self.transaction_type in [self.TransactionType.DEPOSIT, self.TransactionType.REVENUE]:
@@ -159,6 +159,9 @@ class Transaction(models.Model):
             self.executed_at = timezone.now()
             self.save()
             
+            # Update treasury metrics
+            update_treasury_metrics()
+            
             return True
         except Exception as e:
             self.status = self.Status.FAILED
@@ -169,7 +172,7 @@ class Transaction(models.Model):
 class TransactionApproval(models.Model):
     """Model for multi-signature transaction approvals."""
     
-    transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name='approvals')
+    transaction = models.ForeignKey(TreasuryTransaction, on_delete=models.CASCADE, related_name='approvals')
     guardian = models.ForeignKey(Guardian, on_delete=models.CASCADE, related_name='approvals')
     approved = models.BooleanField(default=True)
     comments = models.TextField(blank=True)
@@ -182,23 +185,26 @@ class TransactionApproval(models.Model):
         ordering = ['created_at']
     
     def __str__(self):
-        """String representation of the transaction approval."""
+        """String representation of the approval."""
         action = "approved" if self.approved else "rejected"
         return f"{self.guardian.user.username} {action} transaction {self.transaction.id}"
     
     def save(self, *args, **kwargs):
-        """Override save to check for threshold and execute transaction if reached."""
+        """Override save to check for threshold and execute transaction if needed."""
         super().save(*args, **kwargs)
         
-        # Check if threshold is reached
+        # Check if we've reached the approval threshold
         transaction = self.transaction
-        if transaction.status == Transaction.Status.PENDING:
+        if transaction.status == TreasuryTransaction.Status.PENDING:
             approvals = TransactionApproval.objects.filter(
                 transaction=transaction, approved=True
             ).count()
             
-            if approvals >= settings.TREASURY_MULTISIG_THRESHOLD:
-                transaction.status = Transaction.Status.APPROVED
+            # Get the threshold from settings
+            threshold = getattr(settings, 'TREASURY_MULTISIG_THRESHOLD', 5)
+            
+            if approvals >= threshold:
+                transaction.status = TreasuryTransaction.Status.APPROVED
                 transaction.save()
                 transaction.execute()
 
@@ -219,12 +225,13 @@ class TreasuryMetric(models.Model):
     
     def __str__(self):
         """String representation of the treasury metric."""
-        return f"Treasury Metric: ${self.total_value_usd} at {self.timestamp}"
+        return f"Treasury Metric at {self.timestamp}: ${self.total_value_usd} (Reserve Ratio: {self.reserve_ratio})"
     
     @property
     def is_reserve_ratio_healthy(self):
-        """Check if reserve ratio is above the minimum threshold."""
-        return self.reserve_ratio >= settings.TREASURY_RESERVE_RATIO
+        """Check if the reserve ratio is above the minimum threshold."""
+        min_ratio = getattr(settings, 'TREASURY_RESERVE_RATIO', 0.3)
+        return self.reserve_ratio >= min_ratio
 
 
 class AllocationStrategy(models.Model):
@@ -268,4 +275,27 @@ class AssetAllocation(models.Model):
     
     def __str__(self):
         """String representation of the asset allocation."""
-        return f"{self.strategy.name}: {self.asset_type} - {self.target_percentage}%" 
+        return f"{self.get_asset_type_display()}: {self.target_percentage}% in {self.strategy.name}"
+
+
+def update_treasury_metrics():
+    """Update treasury metrics based on current asset balances."""
+    # Calculate total values
+    total_value = AssetBalance.objects.aggregate(total=models.Sum('usd_value'))['total'] or 0
+    stable_value = AssetBalance.objects.filter(
+        asset__is_stable=True
+    ).aggregate(total=models.Sum('usd_value'))['total'] or 0
+    volatile_value = total_value - stable_value
+    
+    # Calculate reserve ratio
+    reserve_ratio = 0
+    if total_value > 0:
+        reserve_ratio = stable_value / total_value
+    
+    # Create new metric record
+    TreasuryMetric.objects.create(
+        total_value_usd=total_value,
+        stable_assets_value_usd=stable_value,
+        volatile_assets_value_usd=volatile_value,
+        reserve_ratio=reserve_ratio
+    ) 

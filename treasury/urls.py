@@ -9,7 +9,7 @@ from . import views
 router = DefaultRouter()
 router.register(r'assets', views.AssetViewSet)
 router.register(r'balances', views.AssetBalanceViewSet)
-router.register(r'transactions', views.TransactionViewSet)
+router.register(r'transactions', views.TreasuryTransactionViewSet)
 router.register(r'approvals', views.TransactionApprovalViewSet)
 router.register(r'metrics', views.TreasuryMetricViewSet)
 router.register(r'strategies', views.AllocationStrategyViewSet)

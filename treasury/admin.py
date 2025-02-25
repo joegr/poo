@@ -4,7 +4,7 @@ Admin configuration for the treasury app.
 
 from django.contrib import admin
 from .models import (
-    Asset, AssetBalance, Transaction, TransactionApproval,
+    Asset, AssetBalance, TreasuryTransaction, TransactionApproval,
     TreasuryMetric, AllocationStrategy, AssetAllocation
 )
 
@@ -46,9 +46,9 @@ class AssetBalanceAdmin(admin.ModelAdmin):
     readonly_fields = ('last_updated',)
 
 
-@admin.register(Transaction)
-class TransactionAdmin(admin.ModelAdmin):
-    """Admin configuration for Transaction model."""
+@admin.register(TreasuryTransaction)
+class TreasuryTransactionAdmin(admin.ModelAdmin):
+    """Admin configuration for TreasuryTransaction model."""
     
     list_display = (
         'id', 'asset', 'amount', 'usd_value', 'transaction_type',
@@ -93,10 +93,10 @@ class TreasuryMetricAdmin(admin.ModelAdmin):
     
     list_display = (
         'id', 'timestamp', 'total_value_usd', 'stable_assets_value_usd',
-        'volatile_assets_value_usd', 'reserve_ratio', 'is_reserve_ratio_healthy'
+        'volatile_assets_value_usd', 'reserve_ratio'
     )
-    list_filter = ('timestamp', 'is_reserve_ratio_healthy')
-    readonly_fields = ('timestamp', 'is_reserve_ratio_healthy')
+    list_filter = ('timestamp',)
+    readonly_fields = ('timestamp',)
 
 
 @admin.register(AllocationStrategy)

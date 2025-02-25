@@ -74,7 +74,7 @@ class GovernanceTokenAdmin(admin.ModelAdmin):
 class GuardianAdmin(admin.ModelAdmin):
     """Admin configuration for Guardian model."""
     
-    list_display = ('id', 'user', 'term_start', 'term_end', 'is_active')
-    list_filter = ('is_active', 'term_start', 'term_end')
+    list_display = ('id', 'user', 'term_start_date', 'term_end_date', 'is_active')
+    list_filter = ('is_active', 'term_start_date', 'term_end_date')
     search_fields = ('user__username',)
-    readonly_fields = ('term_start',) 
+    readonly_fields = ('user', 'term_start_date', 'term_end_date', 'is_active') 

@@ -4,7 +4,10 @@ Serializers for the governance app.
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Proposal, Vote, ProposalComment, GovernanceToken, Guardian
+from .models import (
+    Proposal, Vote, ProposalComment, GovernanceToken, 
+    Guardian, Member, VerificationRequest, CircuitBreaker
+)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -35,9 +38,10 @@ class ProposalSerializer(serializers.ModelSerializer):
             'total_votes_for', 'total_votes_against', 'total_voting_power'
         ]
         read_only_fields = [
-            'status', 'created_at', 'updated_at', 'discussion_start_time',
-            'voting_start_time', 'voting_end_time', 'execution_time',
-            'total_votes_for', 'total_votes_against', 'total_voting_power'
+            'proposer', 'status', 'created_at', 'updated_at',
+            'discussion_start_time', 'voting_start_time', 'voting_end_time',
+            'execution_time', 'total_votes_for', 'total_votes_against',
+            'total_voting_power'
         ]
 
 
@@ -130,8 +134,10 @@ class GovernanceTokenSerializer(serializers.ModelSerializer):
         """Meta options for the GovernanceTokenSerializer."""
         
         model = GovernanceToken
-        fields = ['id', 'holder', 'balance', 'locked_until', 'delegated_to']
-        read_only_fields = ['holder', 'balance', 'locked_until']
+        fields = [
+            'id', 'holder', 'balance', 'locked_until', 'delegated_to', 'is_locked'
+        ]
+        read_only_fields = ['holder', 'locked_until', 'is_locked']
 
 
 class GuardianSerializer(serializers.ModelSerializer):
@@ -143,5 +149,60 @@ class GuardianSerializer(serializers.ModelSerializer):
         """Meta options for the GuardianSerializer."""
         
         model = Guardian
-        fields = ['id', 'user', 'term_start', 'term_end', 'is_active']
-        read_only_fields = ['user', 'term_start', 'term_end', 'is_active'] 
+        fields = ['id', 'user', 'term_start_date', 'term_end_date', 'is_active']
+        read_only_fields = ['user']
+
+
+class MemberSerializer(serializers.ModelSerializer):
+    """Serializer for Member model."""
+    
+    user = UserSerializer(read_only=True)
+    verification_status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
+    
+    class Meta:
+        """Meta options for the MemberSerializer."""
+        
+        model = Member
+        fields = [
+            'id', 'user', 'wallet_address', 'verification_status',
+            'verification_status_display', 'join_date', 'reputation_score'
+        ]
+        read_only_fields = ['user', 'verification_status', 'join_date']
+
+
+class VerificationRequestSerializer(serializers.ModelSerializer):
+    """Serializer for VerificationRequest model."""
+    
+    user = UserSerializer(read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        """Meta options for the VerificationRequestSerializer."""
+        
+        model = VerificationRequest
+        fields = [
+            'id', 'user', 'full_name', 'date_of_birth', 'country',
+            'id_document_type', 'id_document_number', 'document_front_image',
+            'document_back_image', 'selfie_image', 'status', 'status_display',
+            'rejection_reason', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['user', 'status', 'rejection_reason', 'created_at', 'updated_at']
+
+
+class CircuitBreakerSerializer(serializers.ModelSerializer):
+    """Serializer for CircuitBreaker model."""
+    
+    activated_by = UserSerializer(read_only=True)
+    deactivated_by = UserSerializer(read_only=True)
+    
+    class Meta:
+        """Meta options for the CircuitBreakerSerializer."""
+        
+        model = CircuitBreaker
+        fields = [
+            'id', 'is_active', 'activation_time', 'deactivation_time',
+            'reason', 'activated_by', 'deactivated_by'
+        ]
+        read_only_fields = [
+            'activation_time', 'deactivation_time', 'activated_by', 'deactivated_by'
+        ] 

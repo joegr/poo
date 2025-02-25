@@ -4,9 +4,10 @@ Serializers for the treasury app.
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from governance.models import Guardian
 from governance.serializers import UserSerializer, GuardianSerializer
 from .models import (
-    Asset, AssetBalance, Transaction, TransactionApproval,
+    Asset, AssetBalance, TreasuryTransaction, TransactionApproval,
     TreasuryMetric, AllocationStrategy, AssetAllocation
 )
 
@@ -25,6 +26,7 @@ class AssetSerializer(serializers.ModelSerializer):
             'contract_address', 'chain', 'decimals', 'risk_score', 'is_stable',
             'created_at', 'updated_at'
         ]
+        read_only_fields = ['created_at', 'updated_at']
 
 
 class AssetBalanceSerializer(serializers.ModelSerializer):
@@ -37,10 +39,11 @@ class AssetBalanceSerializer(serializers.ModelSerializer):
         
         model = AssetBalance
         fields = ['id', 'asset', 'balance', 'usd_value', 'last_updated']
+        read_only_fields = ['last_updated']
 
 
-class TransactionSerializer(serializers.ModelSerializer):
-    """Serializer for Transaction model."""
+class TreasuryTransactionSerializer(serializers.ModelSerializer):
+    """Serializer for TreasuryTransaction model."""
     
     asset = AssetSerializer(read_only=True)
     destination_asset = AssetSerializer(read_only=True)
@@ -50,9 +53,9 @@ class TransactionSerializer(serializers.ModelSerializer):
     approval_count = serializers.SerializerMethodField()
     
     class Meta:
-        """Meta options for the TransactionSerializer."""
+        """Meta options for the TreasuryTransactionSerializer."""
         
-        model = Transaction
+        model = TreasuryTransaction
         fields = [
             'id', 'asset', 'amount', 'usd_value', 'transaction_type', 'transaction_type_display',
             'status', 'status_display', 'destination_asset', 'destination_amount',
@@ -64,11 +67,6 @@ class TransactionSerializer(serializers.ModelSerializer):
     def get_approval_count(self, obj):
         """Get the number of approvals for this transaction."""
         return obj.approvals.filter(approved=True).count()
-    
-    def create(self, validated_data):
-        """Create a new transaction."""
-        validated_data['proposer'] = self.context['request'].user
-        return super().create(validated_data)
 
 
 class TransactionCreateSerializer(serializers.ModelSerializer):
@@ -80,7 +78,7 @@ class TransactionCreateSerializer(serializers.ModelSerializer):
     class Meta:
         """Meta options for the TransactionCreateSerializer."""
         
-        model = Transaction
+        model = TreasuryTransaction
         fields = [
             'asset_id', 'amount', 'usd_value', 'transaction_type',
             'destination_asset_id', 'destination_amount',
@@ -92,14 +90,21 @@ class TransactionCreateSerializer(serializers.ModelSerializer):
         asset_id = validated_data.pop('asset_id')
         destination_asset_id = validated_data.pop('destination_asset_id', None)
         
-        # Get the asset objects
-        asset = Asset.objects.get(id=asset_id)
+        # Get the assets
+        try:
+            asset = Asset.objects.get(id=asset_id)
+        except Asset.DoesNotExist:
+            raise serializers.ValidationError({'asset_id': 'Asset not found'})
+        
         destination_asset = None
         if destination_asset_id:
-            destination_asset = Asset.objects.get(id=destination_asset_id)
+            try:
+                destination_asset = Asset.objects.get(id=destination_asset_id)
+            except Asset.DoesNotExist:
+                raise serializers.ValidationError({'destination_asset_id': 'Destination asset not found'})
         
         # Create the transaction
-        transaction = Transaction.objects.create(
+        transaction = TreasuryTransaction.objects.create(
             asset=asset,
             destination_asset=destination_asset,
             proposer=self.context['request'].user,
@@ -113,7 +118,7 @@ class TransactionApprovalSerializer(serializers.ModelSerializer):
     """Serializer for TransactionApproval model."""
     
     guardian = GuardianSerializer(read_only=True)
-    transaction = TransactionSerializer(read_only=True)
+    transaction = TreasuryTransactionSerializer(read_only=True)
     
     class Meta:
         """Meta options for the TransactionApprovalSerializer."""
@@ -121,20 +126,6 @@ class TransactionApprovalSerializer(serializers.ModelSerializer):
         model = TransactionApproval
         fields = ['id', 'transaction', 'guardian', 'approved', 'comments', 'created_at']
         read_only_fields = ['created_at']
-    
-    def create(self, validated_data):
-        """Create a new transaction approval."""
-        # Get the guardian for the current user
-        from governance.models import Guardian
-        guardian = Guardian.objects.get(user=self.context['request'].user)
-        
-        # Create the approval
-        approval = TransactionApproval.objects.create(
-            guardian=guardian,
-            **validated_data
-        )
-        
-        return approval
 
 
 class TransactionApprovalCreateSerializer(serializers.ModelSerializer):
@@ -147,26 +138,6 @@ class TransactionApprovalCreateSerializer(serializers.ModelSerializer):
         
         model = TransactionApproval
         fields = ['transaction_id', 'approved', 'comments']
-    
-    def create(self, validated_data):
-        """Create a new transaction approval."""
-        transaction_id = validated_data.pop('transaction_id')
-        
-        # Get the transaction
-        transaction = Transaction.objects.get(id=transaction_id)
-        
-        # Get the guardian for the current user
-        from governance.models import Guardian
-        guardian = Guardian.objects.get(user=self.context['request'].user)
-        
-        # Create the approval
-        approval = TransactionApproval.objects.create(
-            transaction=transaction,
-            guardian=guardian,
-            **validated_data
-        )
-        
-        return approval
 
 
 class TreasuryMetricSerializer(serializers.ModelSerializer):
@@ -194,7 +165,7 @@ class AssetAllocationSerializer(serializers.ModelSerializer):
         """Meta options for the AssetAllocationSerializer."""
         
         model = AssetAllocation
-        fields = ['id', 'asset_type', 'asset_type_display', 'target_percentage']
+        fields = ['id', 'strategy', 'asset_type', 'asset_type_display', 'target_percentage']
 
 
 class AllocationStrategySerializer(serializers.ModelSerializer):

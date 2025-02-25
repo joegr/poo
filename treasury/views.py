@@ -6,20 +6,22 @@ from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Sum, Q
+from django.shortcuts import get_object_or_404
+from django.contrib.auth.models import User
+from django.db.models import Sum
 from django.utils import timezone
 
-from governance.models import Guardian
 from .models import (
-    Asset, AssetBalance, Transaction, TransactionApproval,
+    Asset, AssetBalance, TreasuryTransaction, TransactionApproval,
     TreasuryMetric, AllocationStrategy, AssetAllocation
 )
 from .serializers import (
-    AssetSerializer, AssetBalanceSerializer, TransactionSerializer,
-    TransactionCreateSerializer, TransactionApprovalSerializer,
-    TransactionApprovalCreateSerializer, TreasuryMetricSerializer,
-    AllocationStrategySerializer, AssetAllocationSerializer
+    AssetSerializer, AssetBalanceSerializer, TreasuryTransactionSerializer,
+    TransactionApprovalSerializer, TreasuryMetricSerializer,
+    AllocationStrategySerializer, AssetAllocationSerializer,
+    TransactionApprovalCreateSerializer, TransactionCreateSerializer
 )
+from governance.models import Guardian
 
 
 class IsGuardianOrReadOnly(permissions.BasePermission):
@@ -95,12 +97,12 @@ class AssetBalanceViewSet(viewsets.ReadOnlyModelViewSet):
         })
 
 
-class TransactionViewSet(viewsets.ModelViewSet):
+class TreasuryTransactionViewSet(viewsets.ModelViewSet):
     """
     API endpoint for transactions.
     """
     
-    queryset = Transaction.objects.all()
+    queryset = TreasuryTransaction.objects.all()
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'transaction_type', 'asset', 'proposer']
@@ -112,7 +114,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
         """Return the appropriate serializer class."""
         if self.action == 'create':
             return TransactionCreateSerializer
-        return TransactionSerializer
+        return TreasuryTransactionSerializer
     
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None):
@@ -127,7 +129,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
             )
         
         # Check if transaction is approved
-        if transaction.status != Transaction.Status.APPROVED:
+        if transaction.status != TreasuryTransaction.Status.APPROVED:
             return Response(
                 {"detail": "This transaction is not approved."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -160,14 +162,14 @@ class TransactionViewSet(viewsets.ModelViewSet):
             )
         
         # Check if transaction can be cancelled
-        if transaction.status not in [Transaction.Status.PENDING, Transaction.Status.APPROVED]:
+        if transaction.status not in [TreasuryTransaction.Status.PENDING, TreasuryTransaction.Status.APPROVED]:
             return Response(
                 {"detail": "This transaction cannot be cancelled in its current state."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         # Cancel the transaction
-        transaction.status = Transaction.Status.REJECTED
+        transaction.status = TreasuryTransaction.Status.REJECTED
         transaction.save()
         
         return Response({"status": "transaction cancelled"})
@@ -331,4 +333,27 @@ class AssetAllocationViewSet(viewsets.ModelViewSet):
         strategy_id = self.request.query_params.get('strategy_id')
         if strategy_id:
             return AssetAllocation.objects.filter(strategy_id=strategy_id)
-        return AssetAllocation.objects.all() 
+        return AssetAllocation.objects.all()
+
+    @action(detail=False, methods=['get'])
+    def pending_for_guardian(self, request):
+        """Get transactions pending approval for the current guardian."""
+        try:
+            guardian = Guardian.objects.get(user=request.user, is_active=True)
+        except Guardian.DoesNotExist:
+            return Response(
+                {'detail': 'User is not an active guardian.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get transactions that the guardian hasn't approved yet
+        approved_transaction_ids = TransactionApproval.objects.filter(
+            guardian=guardian
+        ).values_list('transaction_id', flat=True)
+        
+        pending_transactions = TreasuryTransaction.objects.filter(
+            status=TreasuryTransaction.Status.PENDING
+        ).exclude(id__in=approved_transaction_ids)
+        
+        serializer = TreasuryTransactionSerializer(pending_transactions, many=True)
+        return Response(serializer.data) 
