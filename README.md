@@ -1,4 +1,4 @@
-# DAO Governance System
+# DAO Governance System (Policy Optimization Org) POO
 
 A comprehensive DAO governance platform built with Django, featuring quadratic voting, treasury management, and proposal systems.
 
